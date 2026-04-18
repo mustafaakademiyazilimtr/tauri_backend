@@ -44,20 +44,47 @@ app.post("/register", async (req, res) => {
 
     const { username, email, password } = req.body;
 
-    const hash = await bcrypt.hash(password, 10);
+    if (!username || !email || !password)
+        return res.json({ success: false, message: "Boş alan var" });
 
-    const sql = "INSERT INTO users (username, email, password) VALUES (?,?,?)";
+    try {
 
-    db.query(sql, [username, email, hash], (err) => {
-        if (err) {
-            console.log(err);
-            return res.json({ success: false, message: "Kayıt hatası" });
-        }
+        // 🔍 1) KULLANICI VAR MI KONTROL
+        db.query(
+            "SELECT * FROM users WHERE username=? OR email=?",
+            [username, email],
+            async (err, result) => {
 
-        res.json({ success: true });
-    });
+                if (result.length > 0) {
+                    return res.json({ success: false, message: "User exists" });
+                }
+
+                // 🔐 2) ŞİFRE HASH
+                const hashed = await bcrypt.hash(password, 10);
+
+                // 💾 3) KAYIT EKLE
+                db.query(
+                    "INSERT INTO users (username,email,password) VALUES (?,?,?)",
+                    [username, email, hashed],
+                    (err, result) => {
+
+                        if (err) {
+                            console.log(err);
+                            return res.json({ success: false });
+                        }
+
+                        res.json({ success: true });
+                    }
+                );
+
+            }
+        );
+
+    } catch (err) {
+        res.json({ success: false });
+    }
+
 });
-
 
 // ================= LOGIN =================
 app.post("/login", (req, res) => {
