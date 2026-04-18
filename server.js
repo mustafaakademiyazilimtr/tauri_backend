@@ -44,47 +44,20 @@ app.post("/register", async (req, res) => {
 
     const { username, email, password } = req.body;
 
-    if (!username || !email || !password)
-        return res.json({ success: false, message: "Boş alan var" });
+    const hash = await bcrypt.hash(password, 10);
 
-    try {
+    const sql = "INSERT INTO users (username, email, password) VALUES (?,?,?)";
 
-        // 🔍 1) KULLANICI VAR MI KONTROL
-        db.query(
-            "SELECT * FROM users WHERE username=? OR email=?",
-            [username, email],
-            async (err, result) => {
+    db.query(sql, [username, email, hash], (err) => {
+        if (err) {
+            console.log(err);
+            return res.json({ success: false, message: "Kayıt hatası" });
+        }
 
-                if (result.length > 0) {
-                    return res.json({ success: false, message: "User exists" });
-                }
-
-                // 🔐 2) ŞİFRE HASH
-                const hashed = await bcrypt.hash(password, 10);
-
-                // 💾 3) KAYIT EKLE
-                db.query(
-                    "INSERT INTO users (username,email,password) VALUES (?,?,?)",
-                    [username, email, hashed],
-                    (err, result) => {
-
-                        if (err) {
-                            console.log(err);
-                            return res.json({ success: false });
-                        }
-
-                        res.json({ success: true });
-                    }
-                );
-
-            }
-        );
-
-    } catch (err) {
-        res.json({ success: false });
-    }
-
+        res.json({ success: true });
+    });
 });
+
 
 // ================= LOGIN =================
 app.post("/login", (req, res) => {
@@ -153,6 +126,61 @@ app.get("/profile", auth, (req, res) => {
         success: true,
         user: req.user
     });
+});
+
+const crypto = require("crypto");
+const sendResetMail = require("./mailer");
+
+app.post("/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    const [rows] = await db.query(
+        "SELECT * FROM password_resets WHERE token=?",
+        [token]
+    );
+
+    if (rows.length === 0)
+        return res.json({ success: false });
+
+    const record = rows[0];
+
+    if (new Date() > record.expires)
+        return res.json({ success: false, msg: "Token expired" });
+
+    const bcrypt = require("bcrypt");
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await db.query(
+        "UPDATE users SET password=? WHERE email=?",
+        [hashed, record.email]
+    );
+
+    await db.query("DELETE FROM password_resets WHERE email=?", [record.email]);
+
+    res.json({ success: true });
+});
+
+app.post("/forgot-password", async (req, res) => {
+    const { email } = req.body;
+
+    // kullanıcı var mı
+    const [users] = await db.query("SELECT * FROM users WHERE email=?", [email]);
+    if (users.length === 0)
+        return res.json({ success: true });
+    // güvenlik için yine true döner
+
+    // token üret
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 1000 * 60 * 15); // 15 dk
+
+    await db.query(
+        "INSERT INTO password_resets (email,token,expires) VALUES (?,?,?)",
+        [email, token, expires]
+    );
+
+    await sendResetMail(email, token);
+
+    res.json({ success: true });
 });
 
 
