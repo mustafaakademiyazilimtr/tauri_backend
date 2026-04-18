@@ -1,3 +1,9 @@
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log("API çalışıyor");
+});
+
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -14,10 +20,14 @@ const SECRET = "super_secret_key_change_this";
 
 // ================= MYSQL =================
 const db = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "tauri_app",
-    database: "tauri_app"
+    host: "mysql-20205f07-mziyatas28-12de.g.aivencloud.com",
+    user: "avnadmin",
+    password: "AVNS_5GOzzwpDFHWPxH9_biq",
+    database: "defaultdb",
+    port:23072,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
 db.connect((err) => {
